@@ -109,14 +109,14 @@ const OneDayTrip = () => {
 
     // PLAN B: RAINY / INDOOR DAY - Full Structure
     const rainSchedule = [
-        { id: 'r1', time: '07:00 - 09:15', activity: 'OTW Surabaya (Rainy)', location: 'St Malang -> Gubeng', icon: <Train />, desc: 'Hujan? No worries. Kereta tetep jalan. Bawa payung lipat!', image: 'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?q=80&w=1000', theme: 'bg-slate-50 text-slate-900', iconTheme: 'bg-slate-100 text-slate-600' },
-        { id: 'r2', time: '09:30 - 11:30', activity: 'Indoor Museum Tour', location: 'House of Sampoerna', icon: <MapPin />, desc: 'Ganti plan outdoor ke Museum. Full AC, estetik, dan ada cafe indoor.', image: 'https://images.unsplash.com/photo-1580828343064-fde4fc206bc6?q=80&w=1000', theme: 'bg-red-50 text-red-900', iconTheme: 'bg-red-100 text-red-600' },
-        { id: 'r3', time: '11:30 - 12:00', activity: 'Move to Mall', location: 'Via Gocar', icon: <Car />, desc: 'Pesen Gocar (Bluebird kalo ujan deres biar dapet). Tujuan: Tunjungan Plaza.', image: 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?q=80&w=1000', theme: 'bg-blue-50 text-blue-900', iconTheme: 'bg-blue-100 text-blue-600' },
-        { id: 'r4', time: '12:00 - 14:00', activity: 'Lunch & Dessert', location: 'TP 5 & 6', icon: <Utensils />, desc: "Lunch di Sushi Tei / Marugame. Lanjut dessert di Toby's Estate.", image: 'https://images.unsplash.com/photo-1555126634-323283e090fa?q=80&w=1000', theme: 'bg-orange-50 text-orange-900', iconTheme: 'bg-orange-100 text-orange-600' },
-        { id: 'r5', time: '14:00 - 16:30', activity: 'Cinema / Bowling', location: 'XXI / Funworld TP', icon: <Music />, desc: 'Nonton film terbaru atau main bowling di Funworld biar gak bosen nunggu ujan reda.', image: 'https://images.unsplash.com/photo-1533561362706-0f722956fb59?q=80&w=1000', theme: 'bg-purple-50 text-purple-900', iconTheme: 'bg-purple-100 text-purple-600' },
-        { id: 'r6', time: '16:30 - 19:00', activity: 'Shopping & Dinner', location: 'Uniqlo / H&M', icon: <ShoppingBag />, desc: 'Window shopping. Early dinner di Food Court TP (banyak pilihan).', image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=1000', theme: 'bg-pink-50 text-pink-900', iconTheme: 'bg-pink-100 text-pink-600' },
-        { id: 'r7', time: '19:00 - 20:00', activity: 'Coffee before Home', location: 'Starbucks Stasiun', icon: <Coffee />, desc: 'Nunggu kereta di Starbucks Stasiun Gubeng Baru (Indoor).', image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?q=80&w=1000', theme: 'bg-amber-50 text-amber-900', iconTheme: 'bg-amber-100 text-amber-600' },
-        { id: 'r8', time: '20:30 - 21:00', activity: 'Safe Trip Home', location: 'St Gubeng -> Malang', icon: <Ticket />, desc: 'Pulang dengan selamat dan kering!', image: 'https://images.unsplash.com/photo-1514316973305-653609800619?q=80&w=1000', theme: 'bg-slate-100 text-slate-800', iconTheme: 'bg-slate-200 text-slate-700' }
+        { id: 101, time: '07:00 - 09:15', activity: 'OTW Surabaya (Rainy)', location: 'St Malang -> Gubeng', icon: <Train />, desc: 'Hujan? No worries. Kereta tetep jalan. Bawa payung lipat!', image: 'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?q=80&w=1000', theme: 'bg-slate-50 text-slate-900', iconTheme: 'bg-slate-100 text-slate-600' },
+        { id: 102, time: '09:30 - 11:30', activity: 'Indoor Museum Tour', location: 'House of Sampoerna', icon: <MapPin />, desc: 'Ganti plan outdoor ke Museum. Full AC, estetik, dan ada cafe indoor.', image: 'https://images.unsplash.com/photo-1580828343064-fde4fc206bc6?q=80&w=1000', theme: 'bg-red-50 text-red-900', iconTheme: 'bg-red-100 text-red-600' },
+        { id: 103, time: '11:30 - 12:00', activity: 'Move to Mall', location: 'Via Gocar', icon: <Car />, desc: 'Pesen Gocar (Bluebird kalo ujan deres biar dapet). Tujuan: Tunjungan Plaza.', image: 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?q=80&w=1000', theme: 'bg-blue-50 text-blue-900', iconTheme: 'bg-blue-100 text-blue-600' },
+        { id: 104, time: '12:00 - 14:00', activity: 'Lunch & Dessert', location: 'TP 5 & 6', icon: <Utensils />, desc: "Lunch di Sushi Tei / Marugame. Lanjut dessert di Toby's Estate.", image: 'https://images.unsplash.com/photo-1555126634-323283e090fa?q=80&w=1000', theme: 'bg-orange-50 text-orange-900', iconTheme: 'bg-orange-100 text-orange-600' },
+        { id: 105, time: '14:00 - 16:30', activity: 'Cinema / Bowling', location: 'XXI / Funworld TP', icon: <Music />, desc: 'Nonton film terbaru atau main bowling di Funworld biar gak bosen nunggu ujan reda.', image: 'https://images.unsplash.com/photo-1533561362706-0f722956fb59?q=80&w=1000', theme: 'bg-purple-50 text-purple-900', iconTheme: 'bg-purple-100 text-purple-600' },
+        { id: 106, time: '16:30 - 19:00', activity: 'Shopping & Dinner', location: 'Uniqlo / H&M', icon: <ShoppingBag />, desc: 'Window shopping. Early dinner di Food Court TP (banyak pilihan).', image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=1000', theme: 'bg-pink-50 text-pink-900', iconTheme: 'bg-pink-100 text-pink-600' },
+        { id: 107, time: '19:00 - 20:00', activity: 'Coffee before Home', location: 'Starbucks Stasiun', icon: <Coffee />, desc: 'Nunggu kereta di Starbucks Stasiun Gubeng Baru (Indoor).', image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?q=80&w=1000', theme: 'bg-amber-50 text-amber-900', iconTheme: 'bg-amber-100 text-amber-600' },
+        { id: 108, time: '20:30 - 21:00', activity: 'Safe Trip Home', location: 'St Gubeng -> Malang', icon: <Ticket />, desc: 'Pulang dengan selamat dan kering!', image: 'https://images.unsplash.com/photo-1514316973305-653609800619?q=80&w=1000', theme: 'bg-slate-100 text-slate-800', iconTheme: 'bg-slate-200 text-slate-700' }
     ];
 
     // --- DATA: MISSIONS (BESTIE EDITION), TOPICS, BUDGET, SPOTS, MAPS ---
@@ -402,13 +402,13 @@ const OneDayTrip = () => {
                             <div className="grid gap-4">
                                 {(userPersona === 'Kevin' ? missionsData.Kevin : missionsData.Dina).map((task) => (
                                     <div key={task.id} onClick={() => handleTaskCheck(task.id)} className={`p-6 rounded-[24px] border-2 cursor-pointer transition-all duration-300 flex flex-col md:flex-row items-center justify-between gap-4 group hover:scale-[1.01] ${(userPersona === 'Kevin' ? kevinTasks[task.id] : dinaTasks[task.id])
-                                            ? 'bg-green-50 border-green-200'
-                                            : 'bg-white border-white hover:border-pink-200 shadow-sm'
+                                        ? 'bg-green-50 border-green-200'
+                                        : 'bg-white border-white hover:border-pink-200 shadow-sm'
                                         }`}>
                                         <div className="flex items-center gap-4 w-full">
                                             <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${(userPersona === 'Kevin' ? kevinTasks[task.id] : dinaTasks[task.id])
-                                                    ? 'bg-green-500 text-white scale-110 rotate-12'
-                                                    : 'bg-gray-100 text-gray-300 group-hover:bg-pink-100 group-hover:text-pink-400'
+                                                ? 'bg-green-500 text-white scale-110 rotate-12'
+                                                : 'bg-gray-100 text-gray-300 group-hover:bg-pink-100 group-hover:text-pink-400'
                                                 }`}>
                                                 <CheckCircle2 size={20} />
                                             </div>
