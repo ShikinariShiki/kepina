@@ -8,36 +8,53 @@ import {
     VolumeX, Palmtree, Star, ShoppingBag, Shuffle, CloudLightning, AlertOctagon,
     List, CheckSquare, MessageCircle, Map as MapIcon, User, RefreshCw, Heart,
     ToggleLeft, ToggleRight, CheckCircle2, XCircle, DollarSign, CloudRain, Sun,
-    Navigation, Plus, Trash2, Pencil, X, Upload, LogOut, Lock, Image as ImageIcon
+    Navigation, LogIn, LogOut, UserPlus, X, Upload, Pencil, Trash2, ImageIcon, Plus
 } from 'lucide-react';
 
 // Types
 interface UserData {
     id: string;
-    name: string;
+    username: string;
     password: string;
     persona: 'Kevin' | 'Dina';
     createdAt: string;
 }
 
-interface CTA {
+interface CustomCTA {
     id: string;
-    title: string;
-    description: string;
-    link: string;
+    text: string;
+    reward: string;
     imageProof: string | null;
-    createdAt: string;
-    updatedAt: string;
+    completed: boolean;
     userId: string;
+    createdAt: string;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
-const getFirstName = (name: string) => name.split(' ')[0];
 
 const OneDayTrip = () => {
     const [activeTab, setActiveTab] = useState('timeline');
     const [expandedItem, setExpandedItem] = useState<string | number | null>(null);
     const [isPlaying, setIsPlaying] = useState(true);
+
+    // Auth States
+    const [currentUser, setCurrentUser] = useState<UserData | null>(null);
+    const [showAuthModal, setShowAuthModal] = useState(false);
+    const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+    const [authUsername, setAuthUsername] = useState('');
+    const [authPassword, setAuthPassword] = useState('');
+    const [authConfirmPassword, setAuthConfirmPassword] = useState('');
+    const [selectedPersona, setSelectedPersona] = useState<'Kevin' | 'Dina'>('Kevin');
+    const [authError, setAuthError] = useState('');
+
+    // Custom CTA States
+    const [customCTAs, setCustomCTAs] = useState<CustomCTA[]>([]);
+    const [showCTAModal, setShowCTAModal] = useState(false);
+    const [editingCTA, setEditingCTA] = useState<CustomCTA | null>(null);
+    const [ctaText, setCTAText] = useState('');
+    const [ctaReward, setCTAReward] = useState('');
+    const [ctaImage, setCTAImage] = useState<string | null>(null);
+    const [deletingCTA, setDeletingCTA] = useState<CustomCTA | null>(null);
 
     // Toggles
     const [planMode, setPlanMode] = useState('main'); // 'main' (Sunny) or 'rain' (Indoor/Plan B)
@@ -48,27 +65,6 @@ const OneDayTrip = () => {
     const [kevinTasks, setKevinTasks] = useState<Record<number, boolean>>({ 1: false, 2: false, 3: false, 4: false, 5: false, 6: false });
     const [dinaTasks, setDinaTasks] = useState<Record<number, boolean>>({ 1: false, 2: false, 3: false, 4: false, 5: false, 6: false });
     const [currentTopic, setCurrentTopic] = useState("Hal apa yang kamu pengen orang lain tau tentang kamu, tapi jarang ada yang nanya?");
-
-    // Auth & CTA States
-    const [currentUser, setCurrentUser] = useState<UserData | null>(null);
-    const [showAuthModal, setShowAuthModal] = useState(false);
-    const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-    const [authName, setAuthName] = useState('');
-    const [authPassword, setAuthPassword] = useState('');
-    const [authConfirmPassword, setAuthConfirmPassword] = useState('');
-    const [authError, setAuthError] = useState('');
-    const [selectedPersona, setSelectedPersona] = useState<'Kevin' | 'Dina'>('Kevin');
-
-    // CTA States
-    const [ctas, setCtas] = useState<CTA[]>([]);
-    const [showCTAModal, setShowCTAModal] = useState(false);
-    const [editingCTA, setEditingCTA] = useState<CTA | null>(null);
-    const [ctaTitle, setCtaTitle] = useState('');
-    const [ctaDescription, setCtaDescription] = useState('');
-    const [ctaLink, setCtaLink] = useState('');
-    const [ctaImage, setCtaImage] = useState<string | null>(null);
-    const [deletingCTA, setDeletingCTA] = useState<CTA | null>(null);
-    const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
 
     const audioRef = useRef<HTMLAudioElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -89,6 +85,27 @@ const OneDayTrip = () => {
         }
     };
     const theme = getTheme();
+
+    // Load user session and CTAs from localStorage
+    useEffect(() => {
+        const storedUser = localStorage.getItem('kepina_user');
+        if (storedUser) {
+            const user = JSON.parse(storedUser);
+            setCurrentUser(user);
+            setUserPersona(user.persona);
+        }
+        const storedCTAs = localStorage.getItem('kepina_ctas');
+        if (storedCTAs) {
+            setCustomCTAs(JSON.parse(storedCTAs));
+        }
+    }, []);
+
+    // Save CTAs to localStorage when changed
+    useEffect(() => {
+        if (customCTAs.length > 0 || localStorage.getItem('kepina_ctas')) {
+            localStorage.setItem('kepina_ctas', JSON.stringify(customCTAs));
+        }
+    }, [customCTAs]);
 
     useEffect(() => {
         // Fonts
@@ -130,141 +147,10 @@ const OneDayTrip = () => {
         };
     }, []);
 
-    // Load user and CTAs from localStorage
-    useEffect(() => {
-        const storedUser = localStorage.getItem("kepina_current_user");
-        if (storedUser) {
-            const user = JSON.parse(storedUser);
-            setCurrentUser(user);
-            setUserPersona(user.persona);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (currentUser) {
-            const storedCTAs: CTA[] = JSON.parse(localStorage.getItem("kepina_ctas") || "[]");
-            setCtas(storedCTAs.filter(c => c.userId === currentUser.id));
-        }
-    }, [currentUser]);
-
     const toggleMusic = () => {
         if (audioRef.current) {
             if (isPlaying) { audioRef.current.pause(); } else { audioRef.current.play(); }
             setIsPlaying(!isPlaying);
-        }
-    };
-
-    // Auth Handlers
-    const handleAuth = () => {
-        setAuthError('');
-        if (!authName.trim() || !authPassword.trim()) {
-            setAuthError('Please fill in all fields');
-            return;
-        }
-        const users: UserData[] = JSON.parse(localStorage.getItem("kepina_users") || "[]");
-
-        if (authMode === 'register') {
-            if (authPassword !== authConfirmPassword) {
-                setAuthError('Passwords do not match');
-                return;
-            }
-            if (authPassword.length < 4) {
-                setAuthError('Password must be at least 4 characters');
-                return;
-            }
-            if (users.find(u => u.name.toLowerCase() === authName.toLowerCase())) {
-                setAuthError('Name already exists');
-                return;
-            }
-            const newUser: UserData = {
-                id: generateId(),
-                name: getFirstName(authName),
-                password: authPassword,
-                persona: selectedPersona,
-                createdAt: new Date().toISOString(),
-            };
-            users.push(newUser);
-            localStorage.setItem("kepina_users", JSON.stringify(users));
-            localStorage.setItem("kepina_current_user", JSON.stringify(newUser));
-            setCurrentUser(newUser);
-            setUserPersona(newUser.persona);
-            resetAuthForm();
-        } else {
-            const user = users.find(u => u.name.toLowerCase() === authName.toLowerCase() && u.password === authPassword);
-            if (!user) {
-                setAuthError('Invalid name or password');
-                return;
-            }
-            localStorage.setItem("kepina_current_user", JSON.stringify(user));
-            setCurrentUser(user);
-            setUserPersona(user.persona);
-            resetAuthForm();
-        }
-    };
-
-    const resetAuthForm = () => {
-        setAuthName('');
-        setAuthPassword('');
-        setAuthConfirmPassword('');
-        setAuthError('');
-        setShowAuthModal(false);
-    };
-
-    const handleLogout = () => {
-        localStorage.removeItem("kepina_current_user");
-        setCurrentUser(null);
-    };
-
-    // CTA Handlers
-    const saveCTAs = (newCTAs: CTA[]) => {
-        if (!currentUser) return;
-        const allCTAs: CTA[] = JSON.parse(localStorage.getItem("kepina_ctas") || "[]");
-        const otherUsersCTAs = allCTAs.filter(c => c.userId !== currentUser.id);
-        localStorage.setItem("kepina_ctas", JSON.stringify([...otherUsersCTAs, ...newCTAs]));
-        setCtas(newCTAs);
-    };
-
-    const handleSaveCTA = () => {
-        if (!currentUser || !ctaTitle.trim()) return;
-        if (editingCTA) {
-            const updated = ctas.map(c => c.id === editingCTA.id ? {
-                ...c, title: ctaTitle.trim(), description: ctaDescription.trim(),
-                link: ctaLink.trim(), imageProof: ctaImage, updatedAt: new Date().toISOString()
-            } : c);
-            saveCTAs(updated);
-        } else {
-            const newCTA: CTA = {
-                id: generateId(), title: ctaTitle.trim(), description: ctaDescription.trim(),
-                link: ctaLink.trim(), imageProof: ctaImage, createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(), userId: currentUser.id
-            };
-            saveCTAs([...ctas, newCTA]);
-        }
-        resetCTAForm();
-    };
-
-    const resetCTAForm = () => {
-        setCtaTitle(''); setCtaDescription(''); setCtaLink(''); setCtaImage(null);
-        setEditingCTA(null); setShowCTAModal(false);
-    };
-
-    const handleEditCTA = (cta: CTA) => {
-        setEditingCTA(cta); setCtaTitle(cta.title); setCtaDescription(cta.description);
-        setCtaLink(cta.link); setCtaImage(cta.imageProof); setShowCTAModal(true);
-    };
-
-    const handleDeleteCTA = (id: string) => {
-        saveCTAs(ctas.filter(c => c.id !== id));
-        setDeletingCTA(null);
-    };
-
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            if (file.size > 5 * 1024 * 1024) { alert("Max 5MB"); return; }
-            const reader = new FileReader();
-            reader.onloadend = () => setCtaImage(reader.result as string);
-            reader.readAsDataURL(file);
         }
     };
 
@@ -400,6 +286,154 @@ const OneDayTrip = () => {
         return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(item.activity)}&dates=${dates}&details=${encodeURIComponent(item.desc)}&location=${encodeURIComponent(item.location)}`;
     };
 
+    // --- AUTH FUNCTIONS ---
+
+    const handleAuth = (e: React.FormEvent) => {
+        e.preventDefault();
+        setAuthError('');
+
+        if (!authUsername.trim() || !authPassword.trim()) {
+            setAuthError('Isi semua field!');
+            return;
+        }
+
+        const users: UserData[] = JSON.parse(localStorage.getItem('kepina_users') || '[]');
+
+        if (authMode === 'register') {
+            if (authPassword !== authConfirmPassword) {
+                setAuthError('Password tidak cocok!');
+                return;
+            }
+            if (authPassword.length < 4) {
+                setAuthError('Password minimal 4 karakter!');
+                return;
+            }
+            if (users.find(u => u.username.toLowerCase() === authUsername.toLowerCase())) {
+                setAuthError('Username sudah dipakai!');
+                return;
+            }
+
+            const newUser: UserData = {
+                id: generateId(),
+                username: authUsername.trim(),
+                password: authPassword,
+                persona: selectedPersona,
+                createdAt: new Date().toISOString()
+            };
+            users.push(newUser);
+            localStorage.setItem('kepina_users', JSON.stringify(users));
+            localStorage.setItem('kepina_user', JSON.stringify(newUser));
+            setCurrentUser(newUser);
+            setUserPersona(newUser.persona);
+            resetAuthForm();
+        } else {
+            const user = users.find(u => u.username.toLowerCase() === authUsername.toLowerCase() && u.password === authPassword);
+            if (!user) {
+                setAuthError('Username atau password salah!');
+                return;
+            }
+            localStorage.setItem('kepina_user', JSON.stringify(user));
+            setCurrentUser(user);
+            setUserPersona(user.persona);
+            resetAuthForm();
+        }
+    };
+
+    const resetAuthForm = () => {
+        setAuthUsername('');
+        setAuthPassword('');
+        setAuthConfirmPassword('');
+        setSelectedPersona('Kevin');
+        setAuthError('');
+        setShowAuthModal(false);
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('kepina_user');
+        setCurrentUser(null);
+    };
+
+    // --- CTA CRUD FUNCTIONS ---
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Ukuran gambar maksimal 5MB!');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setCTAImage(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleSaveCTA = () => {
+        if (!ctaText.trim() || !currentUser) return;
+
+        if (editingCTA) {
+            // Update existing CTA
+            setCustomCTAs(prev => prev.map(c =>
+                c.id === editingCTA.id
+                    ? { ...c, text: ctaText.trim(), reward: ctaReward.trim(), imageProof: ctaImage }
+                    : c
+            ));
+        } else {
+            // Create new CTA
+            const newCTA: CustomCTA = {
+                id: generateId(),
+                text: ctaText.trim(),
+                reward: ctaReward.trim() || 'Achievement Unlocked',
+                imageProof: ctaImage,
+                completed: false,
+                userId: currentUser.id,
+                createdAt: new Date().toISOString()
+            };
+            setCustomCTAs(prev => [...prev, newCTA]);
+        }
+        resetCTAForm();
+    };
+
+    const resetCTAForm = () => {
+        setCTAText('');
+        setCTAReward('');
+        setCTAImage(null);
+        setEditingCTA(null);
+        setShowCTAModal(false);
+    };
+
+    const handleEditCTA = (cta: CustomCTA) => {
+        setEditingCTA(cta);
+        setCTAText(cta.text);
+        setCTAReward(cta.reward);
+        setCTAImage(cta.imageProof);
+        setShowCTAModal(true);
+    };
+
+    const handleDeleteCTA = (id: string) => {
+        setCustomCTAs(prev => prev.filter(c => c.id !== id));
+        setDeletingCTA(null);
+    };
+
+    const toggleCTAComplete = (id: string) => {
+        setCustomCTAs(prev => prev.map(c =>
+            c.id === id ? { ...c, completed: !c.completed } : c
+        ));
+    };
+
+    const getUserCTAs = () => {
+        if (!currentUser) return [];
+        return customCTAs.filter(c => c.userId === currentUser.id);
+    };
+
+    // Get display name (first word of username)
+    const getDisplayName = () => {
+        if (!currentUser) return '';
+        return currentUser.username.split(' ')[0];
+    };
+
     // --- COMPONENTS ---
 
     const renderTimeline = (data: typeof mainSchedule) => (
@@ -438,9 +472,34 @@ const OneDayTrip = () => {
     return (
         <div style={{ fontFamily: 'Montserrat, sans-serif' }} className="min-h-screen bg-[#F0F4F9] text-[#1F1F1F] flex flex-col md:flex-row selection:bg-pink-200">
             <audio ref={audioRef} src="https://xri1xbwynlfpuw7m.public.blob.vercel-storage.com/Seycara%20%20Alice%20in%20Paris%21%20%5BFull%20Album%5D%20-%20Seycara.mp3" loop autoPlay />
+            <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleImageUpload} />
 
             {/* SIDEBAR */}
             <aside className="bg-[#F0F4F9] p-4 md:p-6 md:w-80 lg:w-[320px] md:h-screen md:sticky md:top-0 flex flex-col z-20 shrink-0">
+                {/* User Info / Auth */}
+                <div className="bg-white rounded-[28px] p-4 shadow-sm mb-4">
+                    {currentUser ? (
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${currentUser.persona === 'Kevin' ? 'bg-indigo-500' : 'bg-pink-500'}`}>
+                                    {getDisplayName().charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <div className="font-bold text-gray-800">{getDisplayName()}</div>
+                                    <div className="text-xs text-gray-400">as {currentUser.persona}</div>
+                                </div>
+                            </div>
+                            <button onClick={handleLogout} className="p-2 rounded-full bg-gray-100 hover:bg-red-100 hover:text-red-600 transition-all">
+                                <LogOut size={16} />
+                            </button>
+                        </div>
+                    ) : (
+                        <button onClick={() => setShowAuthModal(true)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all">
+                            <LogIn size={18} /> Login / Register
+                        </button>
+                    )}
+                </div>
+
                 <div className="bg-white rounded-[28px] p-6 shadow-sm mb-4 hover:shadow-md transition-all duration-500 group">
                     <div className="flex justify-between items-center mb-4">
                         <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase shadow-sm transition-colors ${planMode === 'main' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-700'}`}>
@@ -455,40 +514,29 @@ const OneDayTrip = () => {
                         <div className="flex items-center gap-2"><MapIcon size={14} /> Malang - SBY</div>
                     </div>
                 </div>
-                {/* User Info */}
-                <div className="bg-white rounded-[20px] p-4 shadow-sm mb-4">
-                    {currentUser ? (
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${currentUser.persona === 'Kevin' ? 'bg-indigo-500' : 'bg-pink-500'}`}>
-                                    {currentUser.name[0]}
-                                </div>
-                                <div>
-                                    <div className="font-bold text-sm">{currentUser.name}</div>
-                                    <div className="text-xs text-gray-400">{currentUser.persona}</div>
-                                </div>
-                            </div>
-                            <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><LogOut size={18} /></button>
-                        </div>
-                    ) : (
-                        <button onClick={() => setShowAuthModal(true)} className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors">
-                            <Lock size={16} /> Login / Register
-                        </button>
-                    )}
-                </div>
                 <nav className="hidden md:flex flex-col gap-2 bg-white rounded-[28px] p-3 shadow-sm flex-1 overflow-y-auto">
                     {[
                         { id: 'timeline', icon: <Clock size={20} />, label: 'Timeline' },
                         { id: 'details', icon: <List size={20} />, label: 'Full Rundown' },
                         { id: 'missions', icon: <CheckSquare size={20} />, label: 'Missions' },
-                        { id: 'cta', icon: <Sparkles size={20} />, label: 'My CTAs' },
+                        { id: 'cta', icon: <Plus size={20} />, label: 'My CTAs', requireAuth: true },
                         { id: 'budget', icon: <Wallet size={20} />, label: 'Budget Plan' },
                         { id: 'spots', icon: <MapPin size={20} />, label: 'Spots Guide' },
                         { id: 'chat', icon: <MessageCircle size={20} />, label: 'Deep Talk' },
                         { id: 'maps', icon: <Navigation size={20} />, label: 'Distance Info' },
                         { id: 'risks', icon: <Shield size={20} />, label: 'Mitigation' },
                     ].map((item) => (
-                        <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex items-center gap-3 px-4 py-3 rounded-[16px] transition-all duration-300 text-sm font-bold ${activeTab === item.id ? `${theme.bg} text-white shadow-lg shadow-indigo-200 transform scale-105` : 'text-gray-500 hover:bg-gray-50'}`}>
+                        <button
+                            key={item.id}
+                            onClick={() => {
+                                if (item.requireAuth && !currentUser) {
+                                    setShowAuthModal(true);
+                                } else {
+                                    setActiveTab(item.id);
+                                }
+                            }}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-[16px] transition-all duration-300 text-sm font-bold ${activeTab === item.id ? `${theme.bg} text-white shadow-lg shadow-indigo-200 transform scale-105` : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
                             {item.icon} {item.label}
                         </button>
                     ))}
@@ -501,7 +549,17 @@ const OneDayTrip = () => {
                 <div className="md:hidden sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200 px-4 py-3 overflow-x-auto whitespace-nowrap no-scrollbar">
                     <div className="flex gap-2">
                         {['timeline', 'details', 'missions', 'cta', 'budget', 'spots', 'chat', 'maps'].map((id) => (
-                            <button key={id} onClick={() => setActiveTab(id)} className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-all capitalize ${activeTab === id ? `${theme.bg} text-white border-transparent` : 'bg-white text-gray-500 border-gray-200'}`}>
+                            <button
+                                key={id}
+                                onClick={() => {
+                                    if (id === 'cta' && !currentUser) {
+                                        setShowAuthModal(true);
+                                    } else {
+                                        setActiveTab(id);
+                                    }
+                                }}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-all capitalize ${activeTab === id ? `${theme.bg} text-white border-transparent` : 'bg-white text-gray-500 border-gray-200'}`}
+                            >
                                 {id === 'cta' ? 'CTAs' : id}
                             </button>
                         ))}
@@ -794,61 +852,94 @@ const OneDayTrip = () => {
                         </div>
                     )}
 
-                    {/* --- CTA PAGE --- */}
-                    {activeTab === 'cta' && (
+                    {/* --- CTA (Custom Call to Actions) PAGE --- */}
+                    {activeTab === 'cta' && currentUser && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            {!currentUser ? (
+                            <div className="bg-cyan-600 text-white p-8 rounded-[32px] flex flex-col md:flex-row items-center justify-between gap-6 shadow-lg">
+                                <div className="flex items-center gap-4">
+                                    <Plus size={48} className="shrink-0" />
+                                    <div>
+                                        <h2 className="text-2xl font-bold">My Call to Actions</h2>
+                                        <p className="opacity-90">Tambah misi pribadi kamu untuk trip ini!</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowCTAModal(true)}
+                                    className="bg-white text-cyan-600 px-6 py-3 rounded-full font-bold hover:bg-cyan-50 transition-all flex items-center gap-2"
+                                >
+                                    <Plus size={20} /> Tambah CTA
+                                </button>
+                            </div>
+
+                            {getUserCTAs().length === 0 ? (
                                 <div className="bg-white p-12 rounded-[32px] text-center shadow-sm">
-                                    <Lock size={48} className="mx-auto text-gray-300 mb-4" />
-                                    <h3 className="text-xl font-bold text-gray-800 mb-2">Login Required</h3>
-                                    <p className="text-gray-500 mb-6">You need to login to manage your CTAs</p>
-                                    <button onClick={() => setShowAuthModal(true)} className="bg-cyan-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-cyan-700 transition-colors">
-                                        Login / Register
-                                    </button>
+                                    <div className="w-20 h-20 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <CheckSquare size={40} className="text-cyan-600" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-800 mb-2">Belum Ada CTA</h3>
+                                    <p className="text-gray-500">Klik tombol &quot;Tambah CTA&quot; untuk membuat misi pertama kamu!</p>
                                 </div>
                             ) : (
-                                <>
-                                    <div className="flex justify-between items-center">
-                                        <h3 className="text-2xl font-bold text-gray-800">{getFirstName(currentUser.name)}&apos;s CTAs</h3>
-                                        <button onClick={() => { resetCTAForm(); setShowCTAModal(true); }} className="bg-cyan-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-cyan-700 transition-colors shadow-lg">
-                                            <Plus size={20} /> New CTA
-                                        </button>
-                                    </div>
-                                    {ctas.length === 0 ? (
-                                        <div className="bg-white p-12 rounded-[32px] text-center shadow-sm">
-                                            <Sparkles size={48} className="mx-auto text-cyan-300 mb-4" />
-                                            <p className="text-gray-500">No CTAs yet. Create your first one!</p>
-                                        </div>
-                                    ) : (
-                                        <div className="grid gap-4">
-                                            {ctas.map(cta => (
-                                                <div key={cta.id} className="bg-white p-6 rounded-[24px] shadow-sm hover:shadow-md transition-all border border-gray-100">
-                                                    <div className="flex justify-between items-start gap-4">
-                                                        <div className="flex-1">
-                                                            <h4 className="font-bold text-lg text-gray-800 mb-1">{cta.title}</h4>
-                                                            {cta.description && <p className="text-gray-500 text-sm mb-2">{cta.description}</p>}
-                                                            {cta.link && <a href={cta.link} target="_blank" rel="noopener noreferrer" className="text-cyan-600 text-sm underline flex items-center gap-1"><ExternalLink size={14} />{cta.link}</a>}
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            {cta.imageProof && (
-                                                                <button onClick={() => setPreviewImage({ src: cta.imageProof!, title: cta.title })} className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                                                                    <ImageIcon size={18} className="text-gray-600" />
-                                                                </button>
-                                                            )}
-                                                            <button onClick={() => handleEditCTA(cta)} className="p-2 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-blue-600"><Pencil size={18} /></button>
-                                                            <button onClick={() => setDeletingCTA(cta)} className="p-2 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-red-600"><Trash2 size={18} /></button>
-                                                        </div>
+                                <div className="grid gap-4">
+                                    {getUserCTAs().map((cta) => (
+                                        <div
+                                            key={cta.id}
+                                            className={`p-6 rounded-[24px] border-2 transition-all duration-300 ${cta.completed ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100 shadow-sm'
+                                                }`}
+                                        >
+                                            <div className="flex flex-col md:flex-row items-start justify-between gap-4">
+                                                <div className="flex items-start gap-4 flex-1">
+                                                    <button
+                                                        onClick={() => toggleCTAComplete(cta.id)}
+                                                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 mt-1 ${cta.completed ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-300 hover:bg-cyan-100 hover:text-cyan-500'
+                                                            }`}
+                                                    >
+                                                        <CheckCircle2 size={20} />
+                                                    </button>
+                                                    <div className="flex-1">
+                                                        <span className={`font-bold text-lg block mb-1 ${cta.completed ? 'text-green-800 line-through opacity-60' : 'text-gray-800'}`}>
+                                                            {cta.text}
+                                                        </span>
+                                                        {cta.reward && (
+                                                            <span className="text-xs font-bold text-cyan-600 bg-cyan-50 px-3 py-1 rounded-full">
+                                                                {cta.reward}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    {cta.imageProof && (
-                                                        <div className="mt-4 h-32 rounded-xl overflow-hidden cursor-pointer" onClick={() => setPreviewImage({ src: cta.imageProof!, title: cta.title })}>
-                                                            <img src={cta.imageProof} alt="Proof" className="w-full h-full object-cover" />
-                                                        </div>
-                                                    )}
                                                 </div>
-                                            ))}
+
+                                                <div className="flex items-center gap-2">
+                                                    {cta.imageProof && (
+                                                        <button
+                                                            onClick={() => setExpandedItem(expandedItem === cta.id ? null : cta.id)}
+                                                            className="p-2 rounded-lg bg-cyan-50 text-cyan-600 hover:bg-cyan-100 transition-all"
+                                                        >
+                                                            <ImageIcon size={18} />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => handleEditCTA(cta)}
+                                                        className="p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-blue-100 hover:text-blue-600 transition-all"
+                                                    >
+                                                        <Pencil size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setDeletingCTA(cta)}
+                                                        className="p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-600 transition-all"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {cta.imageProof && expandedItem === cta.id && (
+                                                <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in zoom-in-95 duration-300">
+                                                    <img src={cta.imageProof} alt="Proof" className="w-full max-h-64 object-contain rounded-xl" />
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </>
+                                    ))}
+                                </div>
                             )}
                         </div>
                     )}
@@ -856,96 +947,202 @@ const OneDayTrip = () => {
                 </div>
             </main>
 
-            {/* Auth Modal */}
+            {/* --- AUTH MODAL --- */}
             {showAuthModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => resetAuthForm()}>
-                    <div className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAuthModal(false)}>
+                    <div className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-black">{authMode === 'login' ? 'Welcome Back!' : 'Create Account'}</h2>
-                            <button onClick={() => resetAuthForm()} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
+                            <h2 className="text-2xl font-black text-gray-800">{authMode === 'login' ? 'Login' : 'Register'}</h2>
+                            <button onClick={() => setShowAuthModal(false)} className="p-2 rounded-full hover:bg-gray-100 transition-all">
+                                <X size={20} />
+                            </button>
                         </div>
-                        <div className="space-y-4">
-                            <input type="text" value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Your Name" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:outline-none transition-colors" />
-                            <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:outline-none transition-colors" />
+
+                        <form onSubmit={handleAuth} className="space-y-4">
+                            <div>
+                                <label className="text-sm font-bold text-gray-600 block mb-2">Username</label>
+                                <input
+                                    type="text"
+                                    value={authUsername}
+                                    onChange={(e) => setAuthUsername(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none transition-all"
+                                    placeholder="Masukkan username"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-gray-600 block mb-2">Password</label>
+                                <input
+                                    type="password"
+                                    value={authPassword}
+                                    onChange={(e) => setAuthPassword(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none transition-all"
+                                    placeholder="Masukkan password"
+                                />
+                            </div>
                             {authMode === 'register' && (
                                 <>
-                                    <input type="password" value={authConfirmPassword} onChange={e => setAuthConfirmPassword(e.target.value)} placeholder="Confirm Password" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:outline-none transition-colors" />
                                     <div>
-                                        <label className="text-sm font-bold text-gray-600 mb-2 block">Select Persona</label>
-                                        <div className="flex gap-2">
-                                            <button type="button" onClick={() => setSelectedPersona('Kevin')} className={`flex-1 py-3 rounded-xl font-bold transition-all ${selectedPersona === 'Kevin' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>Kevin</button>
-                                            <button type="button" onClick={() => setSelectedPersona('Dina')} className={`flex-1 py-3 rounded-xl font-bold transition-all ${selectedPersona === 'Dina' ? 'bg-pink-600 text-white' : 'bg-gray-100 text-gray-500'}`}>Dina</button>
+                                        <label className="text-sm font-bold text-gray-600 block mb-2">Confirm Password</label>
+                                        <input
+                                            type="password"
+                                            value={authConfirmPassword}
+                                            onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                                            className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none transition-all"
+                                            placeholder="Ulangi password"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-gray-600 block mb-2">Pilih Persona</label>
+                                        <div className="flex gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedPersona('Kevin')}
+                                                className={`flex-1 py-3 rounded-xl font-bold transition-all ${selectedPersona === 'Kevin' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                    }`}
+                                            >
+                                                Kevin
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedPersona('Dina')}
+                                                className={`flex-1 py-3 rounded-xl font-bold transition-all ${selectedPersona === 'Dina' ? 'bg-pink-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                    }`}
+                                            >
+                                                Dina
+                                            </button>
                                         </div>
                                     </div>
                                 </>
                             )}
-                            {authError && <div className="text-red-500 text-sm bg-red-50 p-3 rounded-xl">{authError}</div>}
-                            <button onClick={handleAuth} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">{authMode === 'login' ? 'Login' : 'Register'}</button>
-                            <div className="text-center text-sm text-gray-500">
-                                {authMode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-                                <button onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); }} className="text-indigo-600 font-bold">{authMode === 'login' ? 'Register' : 'Login'}</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
 
-            {/* CTA Form Modal */}
-            {showCTAModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => resetCTAForm()}>
-                    <div className="bg-white rounded-[32px] p-8 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-black">{editingCTA ? 'Edit CTA' : 'New CTA'}</h2>
-                            <button onClick={() => resetCTAForm()} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
-                        </div>
-                        <div className="space-y-4">
-                            <input type="text" value={ctaTitle} onChange={e => setCtaTitle(e.target.value)} placeholder="CTA Title *" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-cyan-500 focus:outline-none transition-colors" />
-                            <textarea value={ctaDescription} onChange={e => setCtaDescription(e.target.value)} placeholder="Description (optional)" rows={3} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-cyan-500 focus:outline-none transition-colors resize-none" />
-                            <input type="url" value={ctaLink} onChange={e => setCtaLink(e.target.value)} placeholder="Link URL (optional)" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-cyan-500 focus:outline-none transition-colors" />
-                            <div>
-                                <label className="text-sm font-bold text-gray-600 mb-2 block">Proof Image (optional, max 5MB)</label>
-                                <input type="file" ref={fileInputRef} accept="image/*" onChange={handleImageUpload} className="hidden" />
-                                {ctaImage ? (
-                                    <div className="relative">
-                                        <img src={ctaImage} alt="Proof" className="w-full h-40 object-cover rounded-xl" />
-                                        <button onClick={() => setCtaImage(null)} className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"><X size={16} /></button>
-                                    </div>
-                                ) : (
-                                    <button onClick={() => fileInputRef.current?.click()} className="w-full py-8 border-2 border-dashed border-gray-200 rounded-xl hover:border-cyan-400 transition-colors flex flex-col items-center gap-2 text-gray-400">
-                                        <Upload size={24} /> Click to upload
+                            {authError && (
+                                <div className="text-red-600 text-sm bg-red-50 p-3 rounded-xl border border-red-200">
+                                    {authError}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                className="w-full py-4 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all"
+                            >
+                                {authMode === 'login' ? 'Login' : 'Register'}
+                            </button>
+                        </form>
+
+                        <div className="mt-6 text-center text-sm text-gray-500">
+                            {authMode === 'login' ? (
+                                <>
+                                    Belum punya akun?{' '}
+                                    <button onClick={() => setAuthMode('register')} className="text-indigo-600 font-bold hover:underline">
+                                        Register
                                     </button>
-                                )}
+                                </>
+                            ) : (
+                                <>
+                                    Sudah punya akun?{' '}
+                                    <button onClick={() => setAuthMode('login')} className="text-indigo-600 font-bold hover:underline">
+                                        Login
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* --- CTA MODAL --- */}
+            {showCTAModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={resetCTAForm}>
+                    <div className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-black text-gray-800">{editingCTA ? 'Edit CTA' : 'Tambah CTA'}</h2>
+                            <button onClick={resetCTAForm} className="p-2 rounded-full hover:bg-gray-100 transition-all">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-sm font-bold text-gray-600 block mb-2">Misi / CTA</label>
+                                <input
+                                    type="text"
+                                    value={ctaText}
+                                    onChange={(e) => setCTAText(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-cyan-500 focus:outline-none transition-all"
+                                    placeholder="Contoh: Coba es pisang ijo di Gubeng"
+                                />
                             </div>
-                            <button onClick={handleSaveCTA} disabled={!ctaTitle.trim()} className="w-full bg-cyan-600 text-white py-3 rounded-xl font-bold hover:bg-cyan-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{editingCTA ? 'Save Changes' : 'Create CTA'}</button>
+                            <div>
+                                <label className="text-sm font-bold text-gray-600 block mb-2">Reward (Optional)</label>
+                                <input
+                                    type="text"
+                                    value={ctaReward}
+                                    onChange={(e) => setCTAReward(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-cyan-500 focus:outline-none transition-all"
+                                    placeholder="Contoh: Foodie Master"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-gray-600 block mb-2">Image Proof (Optional)</label>
+                                <div
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer hover:border-cyan-400 hover:bg-cyan-50/50 transition-all"
+                                >
+                                    {ctaImage ? (
+                                        <div className="relative">
+                                            <img src={ctaImage} alt="Preview" className="max-h-40 mx-auto rounded-lg" />
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); setCTAImage(null); }}
+                                                className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <Upload size={32} className="mx-auto text-gray-400 mb-2" />
+                                            <p className="text-sm text-gray-500">Klik untuk upload gambar (max 5MB)</p>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleSaveCTA}
+                                disabled={!ctaText.trim()}
+                                className="w-full py-4 rounded-xl bg-cyan-600 text-white font-bold hover:bg-cyan-700 transition-all disabled:bg-gray-300 disabled:cursor-not-allowed"
+                            >
+                                {editingCTA ? 'Update CTA' : 'Simpan CTA'}
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Delete Confirmation Modal */}
+            {/* --- DELETE CONFIRMATION MODAL --- */}
             {deletingCTA && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDeletingCTA(null)}>
-                    <div className="bg-white rounded-[32px] p-8 w-full max-w-sm shadow-2xl text-center" onClick={e => e.stopPropagation()}>
-                        <Trash2 size={48} className="mx-auto text-red-500 mb-4" />
-                        <h3 className="text-xl font-bold mb-2">Delete CTA?</h3>
-                        <p className="text-gray-500 mb-6">Are you sure you want to delete &quot;{deletingCTA.title}&quot;?</p>
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setDeletingCTA(null)}>
+                    <div className="bg-white rounded-[32px] p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-300 text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Trash2 size={32} className="text-red-600" />
+                        </div>
+                        <h2 className="text-xl font-black text-gray-800 mb-2">Hapus CTA?</h2>
+                        <p className="text-gray-500 mb-6">CTA ini akan dihapus permanen.</p>
                         <div className="flex gap-3">
-                            <button onClick={() => setDeletingCTA(null)} className="flex-1 py-3 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 transition-colors">Cancel</button>
-                            <button onClick={() => handleDeleteCTA(deletingCTA.id)} className="flex-1 py-3 rounded-xl font-bold bg-red-600 text-white hover:bg-red-700 transition-colors">Delete</button>
+                            <button
+                                onClick={() => setDeletingCTA(null)}
+                                className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-all"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={() => handleDeleteCTA(deletingCTA.id)}
+                                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-all"
+                            >
+                                Hapus
+                            </button>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Image Preview Modal */}
-            {previewImage && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setPreviewImage(null)}>
-                    <div className="max-w-4xl w-full" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-white font-bold text-xl">{previewImage.title}</h3>
-                            <button onClick={() => setPreviewImage(null)} className="text-white p-2 hover:bg-white/20 rounded-full"><X size={24} /></button>
-                        </div>
-                        <img src={previewImage.src} alt={previewImage.title} className="w-full rounded-2xl" />
                     </div>
                 </div>
             )}
