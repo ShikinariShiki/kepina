@@ -15,8 +15,10 @@ import {
 interface UserData {
     id: string;
     username: string;
-    password: string;
+    email: string;
+    image?: string;
     persona: 'Kevin' | 'Dina';
+    provider: 'google';
     createdAt: string;
 }
 
@@ -30,6 +32,23 @@ interface CustomCTA {
     createdAt: string;
 }
 
+// Google OAuth Config
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+
+declare global {
+    interface Window {
+        google?: {
+            accounts: {
+                id: {
+                    initialize: (config: { client_id: string; callback: (response: { credential: string }) => void }) => void;
+                    renderButton: (element: HTMLElement | null, options: { theme: string; size: string; width: number }) => void;
+                    prompt: () => void;
+                };
+            };
+        };
+    }
+}
+
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const OneDayTrip = () => {
@@ -40,12 +59,9 @@ const OneDayTrip = () => {
     // Auth States
     const [currentUser, setCurrentUser] = useState<UserData | null>(null);
     const [showAuthModal, setShowAuthModal] = useState(false);
-    const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-    const [authUsername, setAuthUsername] = useState('');
-    const [authPassword, setAuthPassword] = useState('');
-    const [authConfirmPassword, setAuthConfirmPassword] = useState('');
+    const [showPersonaModal, setShowPersonaModal] = useState(false);
+    const [pendingGoogleUser, setPendingGoogleUser] = useState<{ id: string; email: string; name: string; image?: string } | null>(null);
     const [selectedPersona, setSelectedPersona] = useState<'Kevin' | 'Dina'>('Kevin');
-    const [authError, setAuthError] = useState('');
 
     // Custom CTA States
     const [customCTAs, setCustomCTAs] = useState<CustomCTA[]>([]);
@@ -286,66 +302,127 @@ const OneDayTrip = () => {
         return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(item.activity)}&dates=${dates}&details=${encodeURIComponent(item.desc)}&location=${encodeURIComponent(item.location)}`;
     };
 
-    // --- AUTH FUNCTIONS ---
+    // --- GOOGLE AUTH FUNCTIONS ---
 
-    const handleAuth = (e: React.FormEvent) => {
-        e.preventDefault();
-        setAuthError('');
-
-        if (!authUsername.trim() || !authPassword.trim()) {
-            setAuthError('Isi semua field!');
-            return;
-        }
-
-        const users: UserData[] = JSON.parse(localStorage.getItem('kepina_users') || '[]');
-
-        if (authMode === 'register') {
-            if (authPassword !== authConfirmPassword) {
-                setAuthError('Password tidak cocok!');
-                return;
-            }
-            if (authPassword.length < 4) {
-                setAuthError('Password minimal 4 karakter!');
-                return;
-            }
-            if (users.find(u => u.username.toLowerCase() === authUsername.toLowerCase())) {
-                setAuthError('Username sudah dipakai!');
-                return;
-            }
-
-            const newUser: UserData = {
-                id: generateId(),
-                username: authUsername.trim(),
-                password: authPassword,
-                persona: selectedPersona,
-                createdAt: new Date().toISOString()
-            };
-            users.push(newUser);
-            localStorage.setItem('kepina_users', JSON.stringify(users));
-            localStorage.setItem('kepina_user', JSON.stringify(newUser));
-            setCurrentUser(newUser);
-            setUserPersona(newUser.persona);
-            resetAuthForm();
-        } else {
-            const user = users.find(u => u.username.toLowerCase() === authUsername.toLowerCase() && u.password === authPassword);
-            if (!user) {
-                setAuthError('Username atau password salah!');
-                return;
-            }
-            localStorage.setItem('kepina_user', JSON.stringify(user));
-            setCurrentUser(user);
-            setUserPersona(user.persona);
-            resetAuthForm();
+    // Parse JWT token from Google
+    const parseJwt = (token: string) => {
+        try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(
+                atob(base64)
+                    .split('')
+                    .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                    .join('')
+            );
+            return JSON.parse(jsonPayload);
+        } catch {
+            return null;
         }
     };
 
-    const resetAuthForm = () => {
-        setAuthUsername('');
-        setAuthPassword('');
-        setAuthConfirmPassword('');
-        setSelectedPersona('Kevin');
-        setAuthError('');
-        setShowAuthModal(false);
+    // Handle Google login callback
+    const handleGoogleCallback = (response: { credential: string }) => {
+        const userData = parseJwt(response.credential);
+        if (userData) {
+            const googleUser = {
+                id: userData.sub,
+                email: userData.email,
+                name: userData.name,
+                image: userData.picture
+            };
+
+            // Check if user already exists
+            const users: UserData[] = JSON.parse(localStorage.getItem('kepina_users') || '[]');
+            const existingUser = users.find(u => u.email === googleUser.email);
+
+            if (existingUser) {
+                // Login existing user
+                localStorage.setItem('kepina_user', JSON.stringify(existingUser));
+                setCurrentUser(existingUser);
+                setUserPersona(existingUser.persona);
+                setShowAuthModal(false);
+            } else {
+                // New user - need to pick persona
+                setPendingGoogleUser(googleUser);
+                setShowAuthModal(false);
+                setShowPersonaModal(true);
+            }
+        }
+    };
+
+    // Initialize Google OAuth
+    useEffect(() => {
+        if (!GOOGLE_CLIENT_ID) return;
+
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+            if (window.google) {
+                window.google.accounts.id.initialize({
+                    client_id: GOOGLE_CLIENT_ID,
+                    callback: handleGoogleCallback
+                });
+            }
+        };
+        document.body.appendChild(script);
+
+        return () => {
+            if (script.parentNode) {
+                script.parentNode.removeChild(script);
+            }
+        };
+    }, []);
+
+    // Complete registration with persona
+    const completeGoogleRegistration = () => {
+        if (!pendingGoogleUser) return;
+
+        const newUser: UserData = {
+            id: pendingGoogleUser.id,
+            username: pendingGoogleUser.name,
+            email: pendingGoogleUser.email,
+            image: pendingGoogleUser.image,
+            persona: selectedPersona,
+            provider: 'google',
+            createdAt: new Date().toISOString()
+        };
+
+        const users: UserData[] = JSON.parse(localStorage.getItem('kepina_users') || '[]');
+        users.push(newUser);
+        localStorage.setItem('kepina_users', JSON.stringify(users));
+        localStorage.setItem('kepina_user', JSON.stringify(newUser));
+
+        setCurrentUser(newUser);
+        setUserPersona(newUser.persona);
+        setPendingGoogleUser(null);
+        setShowPersonaModal(false);
+    };
+
+    // Mock Google login for demo (when no client ID)
+    const handleMockGoogleLogin = () => {
+        const mockUser = {
+            id: 'mock_' + generateId(),
+            email: 'demo@gmail.com',
+            name: 'Demo User',
+            image: undefined
+        };
+
+        const users: UserData[] = JSON.parse(localStorage.getItem('kepina_users') || '[]');
+        const existingUser = users.find(u => u.email === mockUser.email);
+
+        if (existingUser) {
+            localStorage.setItem('kepina_user', JSON.stringify(existingUser));
+            setCurrentUser(existingUser);
+            setUserPersona(existingUser.persona);
+            setShowAuthModal(false);
+        } else {
+            setPendingGoogleUser(mockUser);
+            setShowAuthModal(false);
+            setShowPersonaModal(true);
+        }
     };
 
     const handleLogout = () => {
@@ -947,104 +1024,98 @@ const OneDayTrip = () => {
                 </div>
             </main>
 
-            {/* --- AUTH MODAL --- */}
+            {/* --- AUTH MODAL (Google OAuth) --- */}
             {showAuthModal && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAuthModal(false)}>
                     <div className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-black text-gray-800">{authMode === 'login' ? 'Login' : 'Register'}</h2>
+                            <h2 className="text-2xl font-black text-gray-800">Login</h2>
                             <button onClick={() => setShowAuthModal(false)} className="p-2 rounded-full hover:bg-gray-100 transition-all">
                                 <X size={20} />
                             </button>
                         </div>
 
-                        <form onSubmit={handleAuth} className="space-y-4">
-                            <div>
-                                <label className="text-sm font-bold text-gray-600 block mb-2">Username</label>
-                                <input
-                                    type="text"
-                                    value={authUsername}
-                                    onChange={(e) => setAuthUsername(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none transition-all"
-                                    placeholder="Masukkan username"
-                                />
+                        <div className="text-center space-y-6">
+                            <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto">
+                                <User size={40} className="text-indigo-600" />
                             </div>
                             <div>
-                                <label className="text-sm font-bold text-gray-600 block mb-2">Password</label>
-                                <input
-                                    type="password"
-                                    value={authPassword}
-                                    onChange={(e) => setAuthPassword(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none transition-all"
-                                    placeholder="Masukkan password"
-                                />
+                                <h3 className="text-lg font-bold text-gray-800 mb-2">Selamat Datang!</h3>
+                                <p className="text-gray-500 text-sm">Login dengan Google untuk mengakses fitur My CTAs</p>
                             </div>
-                            {authMode === 'register' && (
-                                <>
-                                    <div>
-                                        <label className="text-sm font-bold text-gray-600 block mb-2">Confirm Password</label>
-                                        <input
-                                            type="password"
-                                            value={authConfirmPassword}
-                                            onChange={(e) => setAuthConfirmPassword(e.target.value)}
-                                            className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none transition-all"
-                                            placeholder="Ulangi password"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-bold text-gray-600 block mb-2">Pilih Persona</label>
-                                        <div className="flex gap-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => setSelectedPersona('Kevin')}
-                                                className={`flex-1 py-3 rounded-xl font-bold transition-all ${selectedPersona === 'Kevin' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                    }`}
-                                            >
-                                                Kevin
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setSelectedPersona('Dina')}
-                                                className={`flex-1 py-3 rounded-xl font-bold transition-all ${selectedPersona === 'Dina' ? 'bg-pink-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                    }`}
-                                            >
-                                                Dina
-                                            </button>
-                                        </div>
-                                    </div>
-                                </>
+
+                            {/* Google Sign In Button */}
+                            {GOOGLE_CLIENT_ID ? (
+                                <div id="google-signin-btn" className="flex justify-center"></div>
+                            ) : (
+                                <button
+                                    onClick={handleMockGoogleLogin}
+                                    className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-white border-2 border-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all"
+                                >
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                    </svg>
+                                    Continue with Google (Demo)
+                                </button>
                             )}
 
-                            {authError && (
-                                <div className="text-red-600 text-sm bg-red-50 p-3 rounded-xl border border-red-200">
-                                    {authError}
-                                </div>
-                            )}
+                            <p className="text-xs text-gray-400">
+                                Dengan login, kamu setuju untuk menggunakan aplikasi ini sesuai ketentuan.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* --- PERSONA SELECTION MODAL --- */}
+            {showPersonaModal && pendingGoogleUser && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="text-center mb-6">
+                            <h2 className="text-2xl font-black text-gray-800">Pilih Persona</h2>
+                            <p className="text-gray-500 text-sm mt-2">Halo {pendingGoogleUser.name.split(' ')[0]}! Kamu mau jadi siapa?</p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => setSelectedPersona('Kevin')}
+                                    className={`flex-1 p-6 rounded-2xl border-2 transition-all ${selectedPersona === 'Kevin'
+                                        ? 'bg-indigo-50 border-indigo-500 shadow-lg'
+                                        : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
+                                        }`}
+                                >
+                                    <div className={`w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl font-black ${selectedPersona === 'Kevin' ? 'bg-indigo-500 text-white' : 'bg-indigo-100 text-indigo-600'
+                                        }`}>
+                                        K
+                                    </div>
+                                    <div className="font-bold text-gray-800">Kevin</div>
+                                </button>
+                                <button
+                                    onClick={() => setSelectedPersona('Dina')}
+                                    className={`flex-1 p-6 rounded-2xl border-2 transition-all ${selectedPersona === 'Dina'
+                                        ? 'bg-pink-50 border-pink-500 shadow-lg'
+                                        : 'bg-gray-50 border-gray-200 hover:border-pink-300'
+                                        }`}
+                                >
+                                    <div className={`w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl font-black ${selectedPersona === 'Dina' ? 'bg-pink-500 text-white' : 'bg-pink-100 text-pink-600'
+                                        }`}>
+                                        D
+                                    </div>
+                                    <div className="font-bold text-gray-800">Dina</div>
+                                </button>
+                            </div>
 
                             <button
-                                type="submit"
-                                className="w-full py-4 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all"
+                                onClick={completeGoogleRegistration}
+                                className={`w-full py-4 rounded-xl font-bold text-white transition-all ${selectedPersona === 'Kevin' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-pink-600 hover:bg-pink-700'
+                                    }`}
                             >
-                                {authMode === 'login' ? 'Login' : 'Register'}
+                                Lanjut sebagai {selectedPersona}
                             </button>
-                        </form>
-
-                        <div className="mt-6 text-center text-sm text-gray-500">
-                            {authMode === 'login' ? (
-                                <>
-                                    Belum punya akun?{' '}
-                                    <button onClick={() => setAuthMode('register')} className="text-indigo-600 font-bold hover:underline">
-                                        Register
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    Sudah punya akun?{' '}
-                                    <button onClick={() => setAuthMode('login')} className="text-indigo-600 font-bold hover:underline">
-                                        Login
-                                    </button>
-                                </>
-                            )}
                         </div>
                     </div>
                 </div>
